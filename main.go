@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
+
+var ROOT string = ""
 
 func main() {
 	root := "."
@@ -24,14 +27,64 @@ func main() {
 	start(root, port)
 }
 
+func Handler(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path[1:]
+	//if path == "" {
+	//	path = "index.html"
+	//}
+	path = ROOT + path
+	f, err := os.Open(path)
+	if err != nil {
+		fmt.Fprintf(w, "404")
+		return
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		fmt.Fprintf(w, "404")
+		return
+	}
+	//判断是否目录
+	if fi.IsDir() {
+		writeFilelist(&w, f)
+		return
+	}
+
+	const BUFSIZE = 512 * 1024
+	buf := make([]byte, BUFSIZE)
+	for {
+		rlen, err := f.Read(buf)
+		if err != nil {
+			break
+		}
+		w.Write(buf[0:rlen])
+	}
+	f.Close()
+}
+
+func writeFilelist(w *http.ResponseWriter, f *os.File) {
+	files, err := f.Readdirnames(0)
+	if err != nil {
+		fmt.Fprintf(*w, "404")
+		return
+	}
+	fmt.Fprint(*w, "<html>")
+	for _, file := range files {
+		fmt.Fprintf(*w, "<a href=\""+file+"\">"+file+"</a><br>")
+	}
+	fmt.Fprint(*w, "</html>")
+	return
+}
+
 func start(root, port string) {
 	root = strings.Replace(root, "\\", "/", -1)
 	root = strings.TrimRight(root, "/") + "/"
-	http.Handle("/", http.FileServer(http.Dir(root)))
+	//http.Handle("/", http.FileServer(http.Dir(root)))
+	ROOT = root
+	http.HandleFunc("/", Handler)
 	s := &http.Server{
 		Addr:           ":" + port,
-		ReadTimeout:    30 * time.Second,
-		WriteTimeout:   30 * time.Second,
+		ReadTimeout:    12 * time.Hour,
+		WriteTimeout:   12 * time.Hour,
 		MaxHeaderBytes: 1 << 20,
 	}
 	log.Fatal(s.ListenAndServe())
