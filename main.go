@@ -62,14 +62,18 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeFilelist(w *http.ResponseWriter, f *os.File) {
-	files, err := f.Readdirnames(0)
+	files, err := f.Readdir(0)
 	if err != nil {
 		fmt.Fprintf(*w, "404")
 		return
 	}
 	fmt.Fprint(*w, "<html>")
 	for _, file := range files {
-		fmt.Fprintf(*w, "<a href=\""+file+"\">"+file+"</a><br>")
+		fileName := file.Name();
+		if file.IsDir(){
+			fileName += "/"
+		}
+		fmt.Fprintf(*w, "<a href=\""+fileName+"\">"+fileName+"</a><br>")
 	}
 	fmt.Fprint(*w, "</html>")
 	return
