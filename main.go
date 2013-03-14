@@ -45,37 +45,55 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	//判断是否目录
 	if fi.IsDir() {
-		writeFilelist(&w, f)
-		return
+		writeFilelist(w, f)
+	} else {
+		writeFile(w, f, fi.Size(), fi.Name())
 	}
+	f.Close()
+}
 
+func writeFile(w http.ResponseWriter, f *os.File, fileSize int64, fileName string) {
 	const BUFSIZE = 512 * 1024
-	buf := make([]byte, BUFSIZE)
+	if fileSize > BUFSIZE {
+		fileSize = BUFSIZE
+	}
+	buf := make([]byte, fileSize)
 	for {
 		rlen, err := f.Read(buf)
 		if err != nil {
 			break
 		}
+		if fileSize < BUFSIZE { //filter only on small file
+			rIndex := strings.LastIndex(fileName, ".")
+			if rIndex >= 0 {
+				filter := doFilter(strings.ToLower(fileName[rIndex+1:]))
+				if filter != nil {
+					output := filter.filter(buf[0:rlen])
+					w.Write(output.Bytes())
+					return
+				}
+			}
+		}
 		w.Write(buf[0:rlen])
+
 	}
-	f.Close()
 }
 
-func writeFilelist(w *http.ResponseWriter, f *os.File) {
+func writeFilelist(w http.ResponseWriter, f *os.File) {
 	files, err := f.Readdir(0)
 	if err != nil {
-		fmt.Fprintf(*w, "404")
+		fmt.Fprintf(w, "404")
 		return
 	}
-	fmt.Fprint(*w, "<html>")
+	fmt.Fprint(w, "<html>")
 	for _, file := range files {
-		fileName := file.Name();
-		if file.IsDir(){
+		fileName := file.Name()
+		if file.IsDir() {
 			fileName += "/"
 		}
-		fmt.Fprintf(*w, "<a href=\""+fileName+"\">"+fileName+"</a><br>")
+		fmt.Fprintf(w, `<a href="`+fileName+`">`+fileName+`</a><br>`)
 	}
-	fmt.Fprint(*w, "</html>")
+	fmt.Fprint(w, "</html>")
 	return
 }
 

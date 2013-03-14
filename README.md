@@ -1,5 +1,5 @@
 # gohttpd
-A lightweight http file server writen by golang,DO NOT need any configuration.
+A lightweight http file server writen by golang,DO NOT need any configuration. 
 
 ## Usage
 
@@ -12,3 +12,7 @@ for example:
 
 ## Download
 <https://github.com/jijinggang/gohttpd/blob/master/gohttpd.exe?raw=true>
+
+
+##Dependences
+https://github.com/knieriem/markdown
