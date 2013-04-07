@@ -11,7 +11,7 @@ for example:
 
 
 ## Download
-<https://github.com/jijinggang/gohttpd/blob/master/gohttpd.exe?raw=true>
+<https://github.com/jijinggang/gohttpd/blob/master/gohttpd.zip?raw=true>
 
 
 ##Dependences

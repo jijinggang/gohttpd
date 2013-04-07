@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ func main() {
 		fmt.Println("Usage: gohttpd.exe root_dir port (defaut: gohttpd . 80)")
 	}
 	fmt.Printf("START gohttpd (DIR: %s  PORT: %s )\n", root, port)
+	StatStart()
 	start(root, port)
 }
 
@@ -45,7 +47,8 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 	//判断是否目录
 	if fi.IsDir() {
-		writeFilelist(w, f)
+		stat := ("1" == r.FormValue("stat"))
+		writeFilelist(w, f, stat)
 	} else {
 		writeFile(w, f, fi.Size(), fi.Name())
 	}
@@ -70,31 +73,47 @@ func writeFile(w http.ResponseWriter, f *os.File, fileSize int64, fileName strin
 				if filter != nil {
 					output := filter.filter(buf[0:rlen])
 					w.Write(output.Bytes())
+					StatAdd(fileName)
 					return
 				}
 			}
 		}
 		w.Write(buf[0:rlen])
-
 	}
+	StatAdd(fileName)
 }
 
-func writeFilelist(w http.ResponseWriter, f *os.File) {
+type FileInfo struct {
+	Name  string
+	Size  int64
+	Count int64 //download count
+}
+
+var tmpl, _ = template.New("filelist").Parse(TMPL_FILELIST)
+var tmpl2, _ = template.New("filelist").Parse(TMPL_FILELIST_STAT)
+
+func writeFilelist(w http.ResponseWriter, f *os.File, stat bool) {
 	files, err := f.Readdir(0)
 	if err != nil {
 		fmt.Fprintf(w, "404")
 		return
 	}
-	fmt.Fprint(w, "<html>")
+	fileInfos := []*FileInfo{}
 	for _, file := range files {
 		fileName := file.Name()
+		fileSize := file.Size()
 		if file.IsDir() {
 			fileName += "/"
 		}
-		fmt.Fprintf(w, `<a href="`+fileName+`">`+fileName+`</a><br>`)
+		fileInfos = append(fileInfos, &FileInfo{Name: fileName, Size: fileSize})
 	}
-	fmt.Fprint(w, "</html>")
-	return
+	if stat {
+		StatGet(fileInfos)
+		err = tmpl2.Execute(w, fileInfos)
+	} else {
+		err = tmpl.Execute(w, fileInfos)
+	}
+	checkErr(err)
 }
 
 func start(root, port string) {
@@ -111,3 +130,41 @@ func start(root, port string) {
 	}
 	log.Fatal(s.ListenAndServe())
 }
+
+func checkErr(err error) bool {
+	if err != nil {
+		fmt.Println("error: ", err.Error())
+		return true
+	}
+	return false
+}
+
+const TMPL_FILELIST = `<html>
+<head></head>
+<body>
+<table border="0" cellspacing="8">
+	{{with .}}
+	{{range .}}  
+	<tr>
+		<td><a href="{{.Name}}">{{.Name}}</a></td>
+		<td align="right">{{.Size}}B</td>
+	</tr>
+	{{end}} 
+	{{end}}
+</body>
+</html>`
+const TMPL_FILELIST_STAT = `<html>
+<head></head>
+<body>
+<table border="0" cellspacing="8">
+	{{with .}}
+	{{range .}}  
+	<tr>
+		<td><a href="{{.Name}}">{{.Name}}</a></td>
+		<td align="right">{{.Size}}B</td>
+		<td align="right">{{.Count}}</td>
+	</tr>
+	{{end}} 
+	{{end}}
+</body>
+</html>`
