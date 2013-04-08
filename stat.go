@@ -1,3 +1,4 @@
+//statitics service, same as erlang gen_server
 package main
 
 var chAdd chan string
@@ -16,12 +17,8 @@ func statLoop() {
 	for {
 		select {
 		case key := <-chAdd:
-			count, ok := mapStat[key]
-			if ok {
-				mapStat[key] = 1 + count
-			} else {
-				mapStat[key] = 1
-			}
+			count, _ := mapStat[key]
+			mapStat[key] = 1 + count
 		case keys := <-chGet:
 			for _, v := range keys {
 				v.Count = mapStat[v.Name]
