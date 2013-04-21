@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,6 +17,7 @@ var ROOT string = ""
 
 func main() {
 	root := "."
+	//	root = "e:/www"
 	port := "80"
 	flag.Parse()
 	if flag.NArg() == 2 {
@@ -37,54 +39,85 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	path = ROOT + path
 	f, err := os.Open(path)
 	if err != nil {
-		fmt.Fprintf(w, "404")
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		fmt.Fprintf(w, "404")
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	//判断是否目录
+	//run=1 -> give *.md markdown html && give dir statics data
+	run := ("1" == r.FormValue("run"))
 	if fi.IsDir() {
-		stat := ("1" == r.FormValue("stat"))
-		writeFilelist(w, f, stat)
+		writeFilelist(w, f, run)
+	} else if run && fi.Size() < BUFSIZE {
+		fileName := fi.Name()
+		if index := strings.LastIndex(fileName, "."); index >= 0 {
+			buf, err := ioutil.ReadAll(f)
+			if err != nil {
+				return
+			}
+
+			filter := doFilter(strings.ToLower(fileName[index+1:]))
+			if filter != nil {
+				output := filter.filter(buf)
+				w.Write(output.Bytes())
+			} else {
+				w.Write(buf)
+			}
+			StatAdd(fileName)
+			return
+
+		}
 	} else {
-		writeFile(w, f, fi.Size(), fi.Name())
+		code := http.StatusOK
+		fileSize := fi.Size()
+		codeRange, sendSize, err := doHeaderRange(w, r, fileSize, f)
+		if codeRange >= 0 {
+			code = codeRange
+		}
+		w.WriteHeader(code)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+		}
+		if r.Method != "HEAD" {
+			writeFile(w, f, sendSize, fi.Name())
+		}
 	}
-	f.Close()
 }
 
-func writeFile(w http.ResponseWriter, f *os.File, fileSize int64, fileName string) {
-	const BUFSIZE = 512 * 1024
-	if fileSize > BUFSIZE {
-		fileSize = BUFSIZE
+const BUFSIZE int64 = 512 * 1024
+
+func writeFile(w http.ResponseWriter, f *os.File, sendSize int64, fileName string) {
+
+	bufSize := BUFSIZE
+	if sendSize < BUFSIZE {
+		bufSize = sendSize
 	}
-	buf := make([]byte, fileSize)
+	buf := make([]byte, bufSize)
 	for {
+		//		curbuf := buf
+		if sendSize < bufSize {
+			buf = buf[0:sendSize]
+		}
 		rlen, err := f.Read(buf)
 		if err != nil {
 			break
 		}
-		if fileSize < BUFSIZE { //filter only on small file
-			rIndex := strings.LastIndex(fileName, ".")
-			if rIndex >= 0 {
-				filter := doFilter(strings.ToLower(fileName[rIndex+1:]))
-				if filter != nil {
-					output := filter.filter(buf[0:rlen])
-					w.Write(output.Bytes())
-					StatAdd(fileName)
-					return
-				}
-			}
-		}
 		w.Write(buf[0:rlen])
+		sendSize -= int64(rlen)
+		if sendSize <= 0 {
+			break
+		}
 	}
 	StatAdd(fileName)
 }
 
 type FileInfo struct {
 	Name  string
+	Url   string
 	Size  int64
 	Count int64 //download count
 }
@@ -92,7 +125,7 @@ type FileInfo struct {
 var tmpl, _ = template.New("filelist").Parse(TMPL_FILELIST)
 var tmpl2, _ = template.New("filelist").Parse(TMPL_FILELIST_STAT)
 
-func writeFilelist(w http.ResponseWriter, f *os.File, stat bool) {
+func writeFilelist(w http.ResponseWriter, f *os.File, run bool) {
 	files, err := f.Readdir(0)
 	if err != nil {
 		fmt.Fprintf(w, "404")
@@ -105,9 +138,14 @@ func writeFilelist(w http.ResponseWriter, f *os.File, stat bool) {
 		if file.IsDir() {
 			fileName += "/"
 		}
-		fileInfos = append(fileInfos, &FileInfo{Name: fileName, Size: fileSize})
+		url := fileName
+		if run {
+			url += "?run=1"
+		}
+
+		fileInfos = append(fileInfos, &FileInfo{Name: fileName, Url: url, Size: fileSize})
 	}
-	if stat {
+	if run {
 		StatGet(fileInfos)
 		err = tmpl2.Execute(w, fileInfos)
 	} else {
@@ -146,7 +184,7 @@ const TMPL_FILELIST = `<html>
 	{{with .}}
 	{{range .}}  
 	<tr>
-		<td><a href="{{.Name}}">{{.Name}}</a></td>
+		<td><a href="{{.Url}}">{{.Name}}</a></td>
 		<td align="right">{{.Size}}B</td>
 	</tr>
 	{{end}} 
@@ -160,7 +198,7 @@ const TMPL_FILELIST_STAT = `<html>
 	{{with .}}
 	{{range .}}  
 	<tr>
-		<td><a href="{{.Name}}">{{.Name}}</a></td>
+		<td><a href="{{.Url}}">{{.Name}}</a></td>
 		<td align="right">{{.Size}}B</td>
 		<td align="right">{{.Count}}</td>
 	</tr>
