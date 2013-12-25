@@ -117,11 +117,12 @@ func writeFilelist(w http.ResponseWriter, f *os.File, stat bool) {
 }
 
 func start(root, port string) {
+
 	root = strings.Replace(root, "\\", "/", -1)
 	root = strings.TrimRight(root, "/") + "/"
-	//http.Handle("/", http.FileServer(http.Dir(root)))
 	ROOT = root
-	http.HandleFunc("/", Handler)
+	http.Handle("/", http.FileServer(http.Dir(root))) //use fileserver directly
+	//http.HandleFunc("/", Handler)
 	s := &http.Server{
 		Addr:           ":" + port,
 		ReadTimeout:    12 * time.Hour,
