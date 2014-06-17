@@ -1,5 +1,7 @@
-# gohttpd
-A lightweight http file server writen by golang,DO NOT need any configuration. 
+# gohttpd  
+A lightweight http file server writen by golang,DO NOT need any configuration.
+
+[![Build Status](https://travis-ci.org/jijinggang/gohttpd.svg)](https://travis-ci.org/jijinggang/gohttpd)
 
 ## Usage
 
