@@ -15,6 +15,9 @@ for example:
 ## Download
 <https://github.com/jijinggang/gohttpd/blob/master/gohttpd.zip?raw=true>
 
+Online Build
+
+<http://gobuild.io/download/github.com/jijinggang/gohttpd>
 
 ##Dependences
 https://github.com/knieriem/markdown
