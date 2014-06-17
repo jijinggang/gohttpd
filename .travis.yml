@@ -1,0 +1,8 @@
+language: go
+go:
+ - 1.2
+before_script:
+# - go get github.com/jijinggang/goutil
+script:
+ - go test -v github.com/jijinggang/gohttpd
+ - go build -ldflags "-s -w" github.com/jijinggang/gohttpd
