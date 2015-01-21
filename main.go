@@ -13,22 +13,40 @@ import (
 	"time"
 )
 
-var ROOT string = ""
+var ROOT string
+var (
+	root = flag.String("dir", ".", "http root folder")
+	port = flag.String("p", "80", "Address of the http server")
+	key  = flag.String("key", "", "key.pem file， using by https")
+	cert = flag.String("cert", "", "cert.pem file， using by https")
+)
 
 func main() {
-	root := "."
+	//root := "."
 	//	root = "e:/www"
-	port := "80"
+	//port := "80"
 	flag.Parse()
-	if flag.NArg() == 2 {
-		root = flag.Arg(0)
-		port = flag.Arg(1)
-	} else {
-		fmt.Println("Usage: gohttpd.exe root_dir port (defaut: gohttpd . 80)")
+	//if flag.NArg() == 2 {
+	//	root = flag.Arg(0)
+	//	port = flag.Arg(1)
+	//} else {
+	//	fmt.Println("Usage: gohttpd.exe root_dir port (defaut: gohttpd . 80)")
+	//}
+	proto := "http"
+	if isHttps() {
+		proto = "https"
+		if *port == "80" {
+			*port = "443"
+		}
 	}
-	fmt.Printf("START gohttpd (DIR: %s  PORT: %s )\n", root, port)
-	StatStart()
-	start(root, port)
+	fmt.Printf("START %s (DIR: %s  PORT: %s )\n", proto, *root, *port)
+
+	//StatStart()
+	start(*root, *port)
+}
+
+func isHttps() bool {
+	return len(*key) > 0 && len(*cert) > 0
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +177,7 @@ func start(root, port string) {
 	root = strings.Replace(root, "\\", "/", -1)
 	root = strings.TrimRight(root, "/") + "/"
 	ROOT = root
+
 	http.Handle("/", http.FileServer(http.Dir(root))) //use fileserver directly
 	//http.HandleFunc("/", Handler)
 	s := &http.Server{
@@ -167,7 +186,11 @@ func start(root, port string) {
 		WriteTimeout:   12 * time.Hour,
 		MaxHeaderBytes: 1 << 20,
 	}
-	log.Fatal(s.ListenAndServe())
+	if isHttps() {
+		log.Fatal(s.ListenAndServeTLS(*cert, *key))
+	} else {
+		log.Fatal(s.ListenAndServe())
+	}
 }
 
 func checkErr(err error) bool {
@@ -183,12 +206,12 @@ const TMPL_FILELIST = `<html>
 <body>
 <table border="0" cellspacing="8">
 	{{with .}}
-	{{range .}}  
+	{{range .}}
 	<tr>
 		<td><a href="{{.Url}}">{{.Name}}</a></td>
 		<td align="right">{{.Size}}B</td>
 	</tr>
-	{{end}} 
+	{{end}}
 	{{end}}
 </body>
 </html>`
@@ -197,13 +220,13 @@ const TMPL_FILELIST_STAT = `<html>
 <body>
 <table border="0" cellspacing="8">
 	{{with .}}
-	{{range .}}  
+	{{range .}}
 	<tr>
 		<td><a href="{{.Url}}">{{.Name}}</a></td>
 		<td align="right">{{.Size}}B</td>
 		<td align="right">{{.Count}}</td>
 	</tr>
-	{{end}} 
+	{{end}}
 	{{end}}
 </body>
 </html>`

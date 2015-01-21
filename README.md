@@ -1,15 +1,16 @@
-# gohttpd  
+# gohttpd
 A lightweight http file server writen by golang,DO NOT need any configuration.
 
 [![Build Status](https://travis-ci.org/jijinggang/gohttpd.svg)](https://travis-ci.org/jijinggang/gohttpd)
 
 ## Usage
 
-	gohttpd root_dir port
+	gohttpd -dir root_dir -p port
 
 for example:
 
-	gohttpd c:/ 80
+	gohttpd -dir /var/www -p 80
+	gohttpd -dir /var/www -p 443 -key key.pem -cert cert.pem
 
 
 ## Download
