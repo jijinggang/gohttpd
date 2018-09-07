@@ -5,7 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+
+	//	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -15,23 +16,15 @@ import (
 
 var ROOT string
 var (
-	root = flag.String("dir", ".", "http root folder")
-	port = flag.String("p", "80", "Address of the http server")
-	key  = flag.String("key", "", "key.pem file， using by https")
-	cert = flag.String("cert", "", "cert.pem file， using by https")
+	root  = flag.String("dir", ".", "http root folder")
+	port  = flag.String("p", "80", "Address of the http server")
+	key   = flag.String("key", "", "key.pem file， using by https")
+	cert  = flag.String("cert", "", "cert.pem file， using by https")
+	cache = flag.Bool("cache", true, "if cache is false, tell broswer dont't cache file")
 )
 
 func main() {
-	//root := "."
-	//	root = "e:/www"
-	//port := "80"
 	flag.Parse()
-	//if flag.NArg() == 2 {
-	//	root = flag.Arg(0)
-	//	port = flag.Arg(1)
-	//} else {
-	//	fmt.Println("Usage: gohttpd.exe root_dir port (defaut: gohttpd . 80)")
-	//}
 	proto := "http"
 	if isHttps() {
 		proto = "https"
@@ -40,8 +33,9 @@ func main() {
 		}
 	}
 	fmt.Printf("START %s (DIR: %s  PORT: %s )\n", proto, *root, *port)
-
-	//StatStart()
+	if *cache == false {
+		fmt.Printf("no-cache enable!\n")
+	}
 	start(*root, *port)
 }
 
@@ -49,128 +43,15 @@ func isHttps() bool {
 	return len(*key) > 0 && len(*cert) > 0
 }
 
-func Handler(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[1:]
-	//if path == "" {
-	//	path = "index.html"
-	//}
-	path = ROOT + path
-	f, err := os.Open(path)
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
+func fileHandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.URL.Path)
+	if *cache == false {
+		w.Header().Add("Cache-Control", "no-cache")
 	}
-	defer f.Close()
-	fi, err := f.Stat()
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	//run=1 -> give *.md markdown html && give dir statics data
-	run := ("1" == r.FormValue("run"))
-	if fi.IsDir() {
-		writeFilelist(w, f, run)
-	} else if run && fi.Size() < BUFSIZE {
-		fileName := fi.Name()
-		if index := strings.LastIndex(fileName, "."); index >= 0 {
-			buf, err := ioutil.ReadAll(f)
-			if err != nil {
-				return
-			}
-
-			filter := doFilter(strings.ToLower(fileName[index+1:]))
-			if filter != nil {
-				output := filter.filter(buf)
-				w.Write(output.Bytes())
-			} else {
-				w.Write(buf)
-			}
-			StatAdd(fileName)
-			return
-
-		}
-	} else {
-		code := http.StatusOK
-		fileSize := fi.Size()
-		codeRange, sendSize, err := doHeaderRange(w, r, fileSize, f)
-		if codeRange >= 0 {
-			code = codeRange
-		}
-		w.WriteHeader(code)
-		if err != nil {
-			w.Write([]byte(err.Error()))
-		}
-		if r.Method != "HEAD" {
-			writeFile(w, f, sendSize, fi.Name())
-		}
-	}
+	_handler.ServeHTTP(w, r)
 }
 
-const BUFSIZE int64 = 512 * 1024
-
-func writeFile(w http.ResponseWriter, f *os.File, sendSize int64, fileName string) {
-
-	bufSize := BUFSIZE
-	if sendSize < BUFSIZE {
-		bufSize = sendSize
-	}
-	buf := make([]byte, bufSize)
-	for {
-		//		curbuf := buf
-		if sendSize < bufSize {
-			buf = buf[0:sendSize]
-		}
-		rlen, err := f.Read(buf)
-		if err != nil {
-			break
-		}
-		w.Write(buf[0:rlen])
-		sendSize -= int64(rlen)
-		if sendSize <= 0 {
-			break
-		}
-	}
-	StatAdd(fileName)
-}
-
-type FileInfo struct {
-	Name  string
-	Url   string
-	Size  int64
-	Count int64 //download count
-}
-
-var tmpl, _ = template.New("filelist").Parse(TMPL_FILELIST)
-var tmpl2, _ = template.New("filelist").Parse(TMPL_FILELIST_STAT)
-
-func writeFilelist(w http.ResponseWriter, f *os.File, run bool) {
-	files, err := f.Readdir(0)
-	if err != nil {
-		fmt.Fprintf(w, "404")
-		return
-	}
-	fileInfos := []*FileInfo{}
-	for _, file := range files {
-		fileName := file.Name()
-		fileSize := file.Size()
-		if file.IsDir() {
-			fileName += "/"
-		}
-		url := fileName
-		if run {
-			url += "?run=1"
-		}
-
-		fileInfos = append(fileInfos, &FileInfo{Name: fileName, Url: url, Size: fileSize})
-	}
-	if run {
-		StatGet(fileInfos)
-		err = tmpl2.Execute(w, fileInfos)
-	} else {
-		err = tmpl.Execute(w, fileInfos)
-	}
-	checkErr(err)
-}
+var _handler http.Handler
 
 func start(root, port string) {
 
@@ -178,8 +59,11 @@ func start(root, port string) {
 	root = strings.TrimRight(root, "/") + "/"
 	ROOT = root
 
-	http.Handle("/", http.FileServer(http.Dir(root))) //use fileserver directly
+	//http.Handle("/", http.FileServer(http.Dir(root))) //use fileserver directly
 	//http.HandleFunc("/", Handler)
+	_handler = http.FileServer(http.Dir(root))
+	http.HandleFunc("/", fileHandle)
+
 	s := &http.Server{
 		Addr:           ":" + port,
 		ReadTimeout:    12 * time.Hour,
@@ -193,40 +77,144 @@ func start(root, port string) {
 	}
 }
 
-func checkErr(err error) bool {
-	if err != nil {
-		fmt.Println("error: ", err.Error())
-		return true
-	}
-	return false
-}
+//func Handler(w http.ResponseWriter, r *http.Request) {
+//	path := r.URL.Path[1:]
+//	//if path == "" {
+//	//	path = "index.html"
+//	//}
+//	f, err := os.Open(ROOT + path)
+//	if err != nil {
+//		w.WriteHeader(http.StatusNotFound)
+//		return
+//	}
+//	defer f.Close()
+//	fi, err := f.Stat()
+//	if err != nil {
+//		w.WriteHeader(http.StatusNotFound)
+//		return
+//	}
 
-const TMPL_FILELIST = `<html>
-<head></head>
-<body>
-<table border="0" cellspacing="8">
-	{{with .}}
-	{{range .}}
-	<tr>
-		<td><a href="{{.Url}}">{{.Name}}</a></td>
-		<td align="right">{{.Size}}B</td>
-	</tr>
-	{{end}}
-	{{end}}
-</body>
-</html>`
-const TMPL_FILELIST_STAT = `<html>
-<head></head>
-<body>
-<table border="0" cellspacing="8">
-	{{with .}}
-	{{range .}}
-	<tr>
-		<td><a href="{{.Url}}">{{.Name}}</a></td>
-		<td align="right">{{.Size}}B</td>
-		<td align="right">{{.Count}}</td>
-	</tr>
-	{{end}}
-	{{end}}
-</body>
-</html>`
+//	if fi.IsDir() {
+//		writeFilelist(w, f)
+//	} else {
+//		println(path)
+//		if *cache == false {
+//			w.Header().Add("Cache-Control", "no-cache")
+//		}
+//		http.ServeFile(w, r, path)
+//	}
+
+//	/*else if run && fi.Size() < BUFSIZE {
+//		fileName := fi.Name()
+//		if index := strings.LastIndex(fileName, "."); index >= 0 {
+//			buf, err := ioutil.ReadAll(f)
+//			if err != nil {
+//				return
+//			}
+
+//			filter := doFilter(strings.ToLower(fileName[index+1:]))
+//			if filter != nil {
+//				output := filter.filter(buf)
+//				w.Write(output.Bytes())
+//			} else {
+//				w.Write(buf)
+//			}
+//			StatAdd(fileName)
+//			return
+
+//		}
+//	} else {
+//		code := http.StatusOK
+//		fileSize := fi.Size()
+//		codeRange, sendSize, err := doHeaderRange(w, r, fileSize, f)
+//		if codeRange >= 0 {
+//			code = codeRange
+//		}
+//		w.WriteHeader(code)
+//		if err != nil {
+//			w.Write([]byte(err.Error()))
+//		}
+//		if r.Method != "HEAD" {
+//			writeFile(w, f, sendSize, fi.Name())
+//		}
+//	}
+//	*/
+//}
+
+//const BUFSIZE int64 = 512 * 1024
+
+//func writeFile(w http.ResponseWriter, f *os.File, sendSize int64, fileName string) {
+
+//	bufSize := BUFSIZE
+//	if sendSize < BUFSIZE {
+//		bufSize = sendSize
+//	}
+//	buf := make([]byte, bufSize)
+//	for {
+//		//		curbuf := buf
+//		if sendSize < bufSize {
+//			buf = buf[0:sendSize]
+//		}
+//		rlen, err := f.Read(buf)
+//		if err != nil {
+//			break
+//		}
+//		w.Write(buf[0:rlen])
+//		sendSize -= int64(rlen)
+//		if sendSize <= 0 {
+//			break
+//		}
+//	}
+//}
+
+//type FileInfo struct {
+//	Name string
+//	Url  string
+//	Size int64
+//}
+
+//var tmpl, _ = template.New("filelist").Parse(TMPL_FILELIST)
+
+//func writeFilelist(w http.ResponseWriter, f *os.File) {
+//	files, err := f.Readdir(0)
+//	if err != nil {
+//		fmt.Fprintf(w, "404")
+//		return
+//	}
+//	fileInfos := []*FileInfo{}
+//	for _, file := range files {
+//		fileName := file.Name()
+//		fileSize := file.Size()
+//		if file.IsDir() {
+//			fileName += "/"
+//		}
+//		url := fileName
+//		fileInfos = append(fileInfos, &FileInfo{Name: fileName, Url: url, Size: fileSize})
+//	}
+
+//	err = tmpl.Execute(w, fileInfos)
+//	checkErr(err)
+//}
+
+//func checkErr(err error) bool {
+//	if err != nil {
+//		fmt.Println("error: ", err.Error())
+//		return true
+//	}
+//	return false
+//}
+
+//const TMPL_FILELIST = `<html>
+//<head></head>
+//<body>
+//<table border="0" cellspacing="8">
+//	{{with .}}
+//	{{range .}}
+//	<tr>
+//		<td><a href="{{.Url}}">{{.Name}}</a></td>
+//		<td align="right">{{.Size}}B</td>
+//	</tr>
+//	{{end}}
+//	{{end}}
+//</body>
+//</html>`
