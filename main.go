@@ -4,12 +4,16 @@ package main
 import (
 	"flag"
 	"fmt"
-	"html/template"
+	"mime"
+	"path"
 
-	//	"io/ioutil"
+	//	"html/template"
+
+	//"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+
+	//	"os"
 	"strings"
 	"time"
 )
@@ -36,9 +40,12 @@ func main() {
 	if *cache == false {
 		fmt.Printf("no-cache enable!\n")
 	}
+	initMimeExt()
 	start(*root, *port)
 }
-
+func initMimeExt() {
+	mime.AddExtensionType(".js", "application/javascript")
+}
 func isHttps() bool {
 	return len(*key) > 0 && len(*cert) > 0
 }
@@ -47,6 +54,9 @@ func fileHandle(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(r.URL.Path)
 	if *cache == false {
 		w.Header().Add("Cache-Control", "no-cache")
+	}
+	if mimeType := mime.TypeByExtension(path.Ext(r.URL.Path)); len(mimeType) > 0 {
+		w.Header().Set("Content-Type", mimeType)
 	}
 	_handler.ServeHTTP(w, r)
 }
