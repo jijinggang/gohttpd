@@ -1,8 +1,6 @@
 # gohttpd
 A lightweight http file server writen by golang,DO NOT need any configuration. 
 
-[![Build Status](https://travis-ci.org/jijinggang/gohttpd.svg)](https://travis-ci.org/jijinggang/gohttpd)
-
 ## Simple Usage
 
 	gohttpd -dir root_dir -p port
@@ -24,12 +22,11 @@ for example:
 		-key string
 			key.pem file， using by https
 		-p string
-			Address of the http server (default "80")
+			address of the http server (default "80")
+		-gz 
+			enable/disable gzip Content-Type support
 
 ## Download
-<https://github.com/jijinggang/gohttpd/blob/master/gohttpd.zip?raw=true>
+<https://github.com/jijinggang/gohttpd/releases/>
 
-Online Build
-
-<http://gobuild.io/download/github.com/jijinggang/gohttpd>
 
