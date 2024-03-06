@@ -26,6 +26,7 @@ var (
 	cert  = flag.String("cert", "", "cert.pem file， using by https")
 	cache = flag.Bool("cache", true, "if cache is false, tell broswer dont't cache file")
 	gz = flag.Bool("gz",true, "enable/disable gzip Content-Type support")
+	cors = flag.Bool("cors", true, "enable/disable cors access")
 	redirUrl = flag.String("redir", "", "redirect url to index")
 )
 
@@ -77,7 +78,19 @@ func fileHandle(w http.ResponseWriter, r *http.Request) {
 	if mimeType := mime.TypeByExtension(ext); len(mimeType) > 0 {
 		w.Header().Set("Content-Type", mimeType)
 	}
+	if(*cors == true){
+		enableCors(w,r);
+	}
+
 	_handler.ServeHTTP(w, r)
+}
+func enableCors(w http.ResponseWriter, r *http.Request){
+    if origin := r.Header.Get("Origin"); origin != "" {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+        w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization,X-CSRF-Token")
+        w.Header().Set("Access-Control-Expose-Headers", "Authorization")
+    }
 }
 
 var _handler http.Handler

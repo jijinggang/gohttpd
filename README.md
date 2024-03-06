@@ -25,6 +25,8 @@ for example:
 			address of the http server (default "80")
 		-gz 
 			enable/disable gzip Content-Type support
+		-cors 
+			enable/disable cors access
 
 ## Download
 <https://github.com/jijinggang/gohttpd/releases/>
