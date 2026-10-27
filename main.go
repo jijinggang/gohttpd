@@ -26,7 +26,6 @@ var (
 	cert  = flag.String("cert", "", "cert.pem file， using by https")
 	cache = flag.Bool("cache", true, "if cache is false, tell broswer dont't cache file")
 	gz = flag.Bool("gz",true, "enable/disable gzip Content-Type support")
-	br = flag.Bool("br", true, "enable/disable brotli Content-Type support")
 	cors = flag.Bool("cors", true, "enable/disable cors access")
 	redirUrl = flag.String("redir", "", "redirect url to index")
 )
@@ -51,7 +50,6 @@ func initMimeExt() {
 	mime.AddExtensionType(".js", "application/javascript")
 	mime.AddExtensionType(".gz", "gzip")
 	mime.AddExtensionType(".gz", "gzip")
-	mime.AddExtensionType(".br", "br")
 }
 func isHttps() bool {
 	return len(*key) > 0 && len(*cert) > 0
@@ -75,10 +73,6 @@ func fileHandle(w http.ResponseWriter, r *http.Request) {
 	if(*gz == true) && (ext == ".gz"){
 		ext = path.Ext(url[0:len(url)-len(ext)])
 		w.Header().Set("Content-Encoding", "gzip")
-	}
-	if(*br == true) && (ext == ".br"){
-		ext = path.Ext(url[0:len(url)-len(ext)])
-		w.Header().Set("Content-Encoding", "br")
 	}
 
 	if mimeType := mime.TypeByExtension(ext); len(mimeType) > 0 {

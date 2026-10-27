@@ -25,8 +25,6 @@ for example:
 			address of the http server (default "80")
 		-gz 
 			enable/disable gzip Content-Type support
-		-br 
-			enable/disable brotli Content-Type support
 		-cors 
 			enable/disable cors access
 
